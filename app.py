@@ -39,10 +39,9 @@ if submitted:
             with st.spinner("🔍 מייבא ישויות..."):
                 entities = get_entities_list(base_url, username, api_secret)
                 all_data = {}
-                for entity in entities:
-                    name = entity.get("entity_data_name")
-                    if name:
-                        all_data[name] = get_entity_structure(base_url, username, api_secret, name)
+            for entity_name in entities:
+                if isinstance(entity_name, str):
+                    all_data[entity_name] = get_entity_structure(base_url, username, api_secret, entity_name)
 
             json_str = json.dumps(all_data, indent=2, ensure_ascii=False)
             st.success("✅ ייצוא הושלם!")
