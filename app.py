@@ -11,32 +11,32 @@ st.set_page_config(page_title="Origami Architecture Exporter", layout="centered"
 def get_entities_list(env_name, username, api_secret):
     """
     Fetch entities list from Origami.
-    Expected return: {"entities_list": ["entity1", "entity2", ...]}
+    Supports both response formats:
+    1) {"entities_list": [...]}
+    2) [ {...}, {...} ]
     """
     url = f"https://{env_name}.origami.ms/entities/api/entities_list/format/json"
-    payload = {
-        "username": username,
-        "api_secret": api_secret
-    }
+    payload = {"username": username, "api_secret": api_secret}
+
     res = requests.post(url, json=payload)
     res.raise_for_status()
     data = res.json()
 
-    if "entities_list" not in data:
-        raise Exception("API did not return 'entities_list'. Full response: " + str(data))
+    # Case A: correct documented format
+    if isinstance(data, dict) and "entities_list" in data:
+        return [obj.get("entity_data_name") for obj in data["entities_list"]]
 
-    entities = data["entities_list"]
+    # Case B: API returns list of entity objects directly
+    if isinstance(data, list):
+        return [obj.get("entity_data_name") for obj in data if isinstance(obj, dict)]
 
-    # Must be a list
-    if not isinstance(entities, list):
-        raise Exception("Expected a list for entities_list, got: " + str(type(entities)))
-
-    return entities
+    # Anything else = unexpected response
+    raise Exception("Unexpected API response format: " + str(data))
 
 
 def get_entity_structure(env_name, username, api_secret, entity_name):
     """
-    Fetch the structure of a single entity.
+    Fetch the full structure of a single entity.
     """
     url = f"https://{env_name}.origami.ms/entities/api/entity_structure/format/json"
     payload = {
@@ -57,7 +57,7 @@ st.title("📦 Origami Architecture Exporter")
 st.markdown("הזן את פרטי הגישה שלך וקבל קובץ JSON עם כל הארכיטקטורה של הישויות במערכת Origami שלך.")
 
 with st.form("input_form"):
-    env_name = st.text_input("🌍 שם הסביבה (ללא https://)", placeholder="example → אם הקישור הוא https://example.origami.ms")
+    env_name = st.text_input("🌍 שם הסביבה (ללא https://)", placeholder="example")
     username = st.text_input("👤 שם משתמש במערכת")
     api_secret = st.text_input("🔐 API Secret", type="password")
     submitted = st.form_submit_button("📤 הפק JSON")
@@ -74,12 +74,9 @@ if submitted:
             progress = st.progress(0)
             total = len(entities)
 
-            for idx, entity_item in enumerate(entities):
-                # Each entity is expected to be a string!
-                if isinstance(entity_item, str):
-                    entity_name = entity_item
-                else:
-                    raise Exception(f"Entity list contains non-string: {entity_item}")
+            for idx, entity_name in enumerate(entities):
+                if not entity_name:
+                    continue
 
                 st.write(f"📥 טוען ישות: `{entity_name}`")
                 structure = get_entity_structure(env_name, username, api_secret, entity_name)
